@@ -29,6 +29,8 @@ interface ReplyNotificationPostback {
     type            : string;
     message         : string;
     replyToken      : string;
+    bgColor?        : string;
+    textColor?      : string;
 }
 interface ReplyNotificationPostbackTemp{
     userId          : number;
@@ -1143,7 +1145,8 @@ export const replyNotificationPostback = async ({
     type,
     message,
     replyToken,
-    
+    bgColor = "#FFC107",    // สีเหลืองเป็นค่าเริ่มต้น
+    textColor = "#000000"   // ข้อความสีดำเป็นค่าเริ่มต้น
 }: ReplyNotificationPostback ) => {
     try {
         const requestData = {
@@ -1151,63 +1154,41 @@ export const replyNotificationPostback = async ({
             messages: [
                 {
                     type    : "flex",
-                    altText : "แจ้งเตือน",
+                    altText : "แจ้งเตือนเขตปลอดภัย",
                     contents: {
                         type: "bubble",
+                        styles: {
+                            body: {
+                                backgroundColor: bgColor  // ใช้สีพื้นหลังที่ส่งมา
+                            }
+                        },
                         body: {
                             type    : "box",
                             layout  : "vertical",
                             contents: [
                                 {
-                                    type    : "text",
-                                    text    : " ",
-                                    contents: [
-                                        {
-                                            type      : "span",
-                                            text      : "แจ้งเตือนเขตปลอดภัย",
-                                            color     : "#FC0303",
-                                            size      : "xl",
-                                            weight    : "bold",
-                                            decoration: "none"
-                                        },
-                                        {
-                                            type      : "span",
-                                            text      : " ",
-                                            size      : "xxl",
-                                            decoration: "none"
-                                        }
-                                    ]
+                                    type  : "text",
+                                    text  : "แจ้งเตือนเขตปลอดภัย",
+                                    color : textColor,  // ใช้สีตัวอักษรที่คู่กับพื้นหลัง
+                                    size  : "xl",
+                                    weight: "bold"
                                 },
                                 {
                                     type  : "separator",
-                                    margin: "md"
+                                    margin: "md",
+                                    color : textColor
                                 },
                                 {
                                     type  : "text",
-                                    text  : " ",
-                                    wrap : true,
-                                    lineSpacing: "5px",
-                                    margin: "md",
-                                    contents:[
-                                        {
-                                            type      : "span",
-                                            text      : message,
-                                            color     : "#555555",
-                                            size      : "md",
-                                            // decoration: "none",
-                                            // wrap      : true
-                                        },
-                                        {
-                                            type      : "span",
-                                            text      : " ",
-                                            size      : "xl",
-                                            decoration: "none"
-                                        }
-                                    ]
+                                    text  : message,
+                                    wrap  : true,
+                                    color : textColor,
+                                    size  : "md",
+                                    margin: "md"
                                 },
                                 {
                                     type  : "button",
-                                    style : "primary",
+                                    style : bgColor === "#FC0303" ? "secondary" : "primary",  // ถ้าแดงใช้ secondary, เหลืองใช้ primary
                                     height: "sm",
                                     margin: "xxl",
                                     action: {
@@ -1216,28 +1197,13 @@ export const replyNotificationPostback = async ({
                                         data : `userLineId=${replyToken}&takecarepersonId=${takecarepersonId}&type=${type}`,
                                     }
                                 },
-                                { 
+                                {
                                     type  : "text",
-                                    text  : " ",
-                                    wrap  : true,
-                                    lineSpacing: "5px",
+                                    text  : "*หมายเหตุ: ข้าพเจ้ายินยอมเปิดเผยข้อมูลตำแหน่งปัจจุบันของผู้ที่มีภาวะพึ่งพิง",
+                                    color : textColor,
+                                    size  : "xs",
                                     margin: "md",
-                                    contents:[
-                                        {
-                                            type      : "span",
-                                            text      : "*หมาย: ข้าพเจ้ายินยอมเปิดเผยข้อมูลตำแหน่งปัจจุบันของผู้ที่มีภาวะพึ่งพิง",
-                                            color     : "#FC0303",
-                                            size      : "md",
-                                            // decoration: "none",
-                                            // wrap      : true
-                                        },
-                                        {
-                                            type      : "span",
-                                            text      : " ",
-                                            size      : "xl",
-                                            decoration: "none"
-                                        }
-                                    ]
+                                    wrap  : true
                                 },
                             ]
                         }
@@ -1735,7 +1701,7 @@ export const replyNotificationPostbackHeart = async ({
                                         data : `userLineId=${replyToken}&takecarepersonId=${takecarepersonId}&type=${type}`,
                                     }
                                 },
-                                { 
+                                {
                                     type  : "text",
                                     text  : " ",
                                     wrap  : true,
@@ -1765,6 +1731,82 @@ export const replyNotificationPostbackHeart = async ({
             ],
         };
        await axios.post(LINE_PUSH_MESSAGING_API, requestData, { headers:LINE_HEADER });
+    } catch (error) {
+        if (error instanceof Error) {
+            console.log(error.message);
+        }
+    }
+}
+
+export const replyNotificationSafe = async ({
+    replyToken,
+    message
+}: ReplyNotification) => {
+    try {
+        const requestData = {
+            to: replyToken,
+            messages: [
+                {
+                    type    : "flex",
+                    altText : "กลับเข้าเขตปลอดภัย",
+                    contents: {
+                        type: "bubble",
+                        body: {
+                            type    : "box",
+                            layout  : "vertical",
+                            contents: [
+                                {
+                                    type    : "text",
+                                    text    : " ",
+                                    contents: [
+                                        {
+                                            type      : "span",
+                                            text      : "✅ กลับเข้าเขตปลอดภัยแล้ว",
+                                            color     : "#10B981",
+                                            size      : "xl",
+                                            weight    : "bold",
+                                            decoration: "none"
+                                        },
+                                        {
+                                            type      : "span",
+                                            text      : " ",
+                                            size      : "xxl",
+                                            decoration: "none"
+                                        }
+                                    ]
+                                },
+                                {
+                                    type  : "separator",
+                                    margin: "md"
+                                },
+                                {
+                                    type  : "text",
+                                    text  : " ",
+                                    wrap : true,
+                                    lineSpacing: "5px",
+                                    margin: "md",
+                                    contents:[
+                                        {
+                                            type      : "span",
+                                            text      : message,
+                                            color     : "#555555",
+                                            size      : "md",
+                                        },
+                                        {
+                                            type      : "span",
+                                            text      : " ",
+                                            size      : "xl",
+                                            decoration: "none"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+        };
+       await axios.post(LINE_PUSH_MESSAGING_API, requestData, { headers: LINE_HEADER });
     } catch (error) {
         if (error instanceof Error) {
             console.log(error.message);

@@ -182,19 +182,44 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         // ตรวจสอบ postback
 if (events.type === "postback" && events.postback?.data) {
 	console.log("Postback Data: ", events.postback.data);  // เช็คข้อมูล postback ที่ได้รับ
-  
+
 	// แปลงข้อมูลจาก postback
 	const postback = parseQueryString(events.postback.data);
 	console.log("Parsed Postback: ", postback);  // เช็คผลลัพธ์จากการ parse postback
-  
+
 	// เช็ค postback.type สำหรับกรณีทั้ง 'safezone' และ 'alert'
 	if (postback.type === 'safezone' || postback.type === 'alert') {
 	  console.log("Postback Triggered: ", postback);  // เช็คกรณี safezone หรือ alert
-	  const replyToken = await postbackSafezone({ userLineId: postback.userLineId, takecarepersonId: Number(postback.takecarepersonId) });
-	  console.log("Reply Token for Safezone: ", replyToken);  // เช็ค replyToken
-  
-	  if (replyToken) {
-		await replyNotification({ replyToken, message: 'ส่งคำขอความช่วยเหลือแล้ว' });
+
+	  // ดึงข้อมูลผู้ใช้จาก LINE User ID
+	  const user = await api.getUser(postback.userLineId);
+
+	  if (user) {
+		// ตรวจสอบสถานะล่าสุดก่อนดำเนินการ
+		const latestLocation = await prisma.location.findFirst({
+		  where: {
+			users_id: user.users_id,
+			takecare_id: Number(postback.takecarepersonId),
+		  },
+		  orderBy: { locat_timestamp: 'desc' },
+		});
+
+		// ถ้าสถานะล่าสุดเป็น 0 (อยู่ในเขตปลอดภัย) ไม่ให้ทำงาน
+		if (latestLocation && latestLocation.locat_status === 0) {
+		  await replyNotification({
+			replyToken: user.users_line_id,
+			message: '✅ ผู้ที่มีภาวะพึ่งพิงกลับเข้าเขตปลอดภัยแล้ว\nไม่จำเป็นต้องขอความช่วยเหลือเพิ่มเติม'
+		  });
+		  console.log("User is now safe, postback action cancelled");
+		} else {
+		  // สถานะยังไม่ปลอดภัย ดำเนินการตามปกติ
+		  const replyToken = await postbackSafezone({ userLineId: postback.userLineId, takecarepersonId: Number(postback.takecarepersonId) });
+		  console.log("Reply Token for Safezone: ", replyToken);  // เช็ค replyToken
+
+		  if (replyToken) {
+			await replyNotification({ replyToken, message: 'ส่งคำขอความช่วยเหลือแล้ว' });
+		  }
+		}
 	  }
 	} else if (postback.type === 'accept') {
 	  console.log("Accept Postback Triggered: ", postback);  // เช็คกรณี accept
