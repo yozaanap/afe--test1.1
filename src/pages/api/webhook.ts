@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { NextResponse } from 'next/server'
 import axios from "axios";
 import prisma from '@/lib/prisma'
-import { replyMessage, replyRegistration, replyUserData, replyNotRegistration, replyMenuBorrowequipment, replyConnection, replyLocation, replySetting, replyUserInfo, replyNotification } from '@/utils/apiLineReply';
+import { replyMessage, replyRegistration, replyUserData, replyNotRegistration, replyMenuBorrowequipment, replyConnection, replyLocation, replySetting, replyUserInfo, replyNotification, replyNotificationSafe } from '@/utils/apiLineReply';
 import { encrypt, parseQueryString } from '@/utils/helpers'
 import { postbackSafezone, postbackAccept, postbackClose } from '@/lib/lineFunction'
 import * as api from '@/lib/listAPI'
@@ -206,7 +206,7 @@ if (events.type === "postback" && events.postback?.data) {
 
 		// ถ้าสถานะล่าสุดเป็น 0 (อยู่ในเขตปลอดภัย) ไม่ให้ทำงาน
 		if (latestLocation && latestLocation.locat_status === 0) {
-		  await replyNotification({
+		  await replyNotificationSafe({
 			replyToken: user.users_line_id,
 			message: '✅ ผู้ที่มีภาวะพึ่งพิงกลับเข้าเขตปลอดภัยแล้ว\nไม่จำเป็นต้องขอความช่วยเหลือเพิ่มเติม'
 		  });

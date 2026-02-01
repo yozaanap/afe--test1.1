@@ -131,7 +131,20 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         return res.status(200).json({ message: 'success', data: savedLocation });
       }
 
-      // แจ้งเตือน (เหมือนเดิม)
+      // ตรวจสอบว่าควรแจ้งเตือนหรือไม่
+      // แจ้งเตือนเฉพาะเมื่อ:
+      // 1. สถานะเปลี่ยนจากเดิม (previousStatus !== calculatedStatus)
+      // 2. หรือเวลาผ่านไปมากกว่า 15 นาที (900000 มิลลิวินาที) นับจากการแจ้งเตือนครั้งล่าสุด
+      const shouldNotify =
+        previousStatus !== calculatedStatus ||
+        !latest?.locat_noti_time ||
+        (new Date().getTime() - new Date(latest.locat_noti_time).getTime()) > 900000; // 15 นาที
+
+      if (!shouldNotify) {
+        return res.status(200).json({ message: 'success', data: savedLocation });
+      }
+
+      // แจ้งเตือน
       const user = await prisma.users.findFirst({ where: { users_id: Number(uId) } });
       const takecareperson = await prisma.takecareperson.findFirst({
         where: {
@@ -140,8 +153,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           takecare_status: 1,
         },
       });
-
-      // ... (ส่วนดึงข้อมูลเดิม) ...
 
       if (user && takecareperson) {
         const replyToken = user.users_line_id || '';
