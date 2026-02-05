@@ -3,7 +3,6 @@ import { GetServerSideProps } from 'next';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import Container from 'react-bootstrap/Container';
-import CryptoJS from 'crypto-js';
 
 import withCommonData from '@/lib/withCommonData';
 
@@ -12,10 +11,19 @@ import styles from '@/styles/page.module.css'
 import Form from 'react-bootstrap/Form';
 
 import InputLabel from '@/components/Form/InputLabel'
+import SelectAddress from '@/components/Form/SelectAddress';
 import ModalAlert from '@/components/Modals/ModalAlert'
 import ButtonState from '@/components/Button/ButtonState';
 import DatePickerX from '@/components/DatePicker/DatePickerX';
 import { encrypt } from '@/utils/helpers'
+
+// 🔥 Import Validation
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { elderlyRegistrationSchema, ElderlyRegistrationFormData } from '@/components/validations/elderlyRegistrationSchema';
+
+// 🔥 Import Hook
+import { useThaiAddress } from '@/hooks/useThaiAddress';
 
 import axios from 'axios';
 
@@ -37,35 +45,144 @@ interface UserTakecareData {
         takecare_province?: string;
         takecare_postcode?: string;
         takecare_tel1    ?: string;
+        takecare_tel_home?: string;
         takecare_disease ?: string;
         takecare_drug    ?: string;
         takecare_status  ?: number;
     } | null;
     users_id: number | null;
-  }
+}
 
 const ElderlyRegistration = () => {
     const router = useRouter();
 
-    const [validated, setValidated] = useState(false);
     const [alert, setAlert] = useState({ show: false, message: '' });
-    const [isLoading, setLoading] = useState(false);
     const [displayName, setDisplayName] = useState<string>("");
     const [dataUser, setDataUser] = useState<UserTakecareData>({ isLogin: true, data: null, users_id: null });
-    const [takecareBirthday, setTakecareBirthday] = useState<Date | null>(new Date());
     const [masterGender, setMasterGender] = useState<[]>([]);
     const [masterMarry, setMasterMarry] = useState<[]>([]);
 
-    useEffect(() => {
-        const auToken = router.query.auToken
-        getMasterData()
+    // 🔥 เรียกใช้ Thai Address Hook
+    const { data, status, selected, actions, getNames, getLabel } = useThaiAddress();
 
-        if (auToken) {
-            onGetUserProfile(auToken as string)
-            onGetUserData(auToken as string)
+    // 🔥 ใช้ React Hook Form
+    const { 
+        register, 
+        handleSubmit, 
+        reset, 
+        watch,
+        setValue,
+        control,
+        formState: { errors, isSubmitting } 
+    } = useForm<ElderlyRegistrationFormData>({
+        resolver: zodResolver(elderlyRegistrationSchema),
+        mode: "onChange",
+        defaultValues: {
+            takecare_birthday: new Date(),
+            // ไม่ต้องกำหนด gender_id และ marry_id เพื่อให้ผู้ใช้เลือกเอง
         }
-      
+    });
+
+    // 🔥 Sync ค่าจาก dropdown ไปยัง form
+    useEffect(() => {
+        if (selected.provinceId) {
+            setValue('takecare_province', getNames.getProvinceName(selected.provinceId));
+        }
+        if (selected.districtId) {
+            setValue('takecare_amphur', getNames.getDistrictName(selected.districtId));
+        }
+        if (selected.subDistrictId) {
+            setValue('takecare_tubon', getNames.getSubDistrictName(selected.subDistrictId));
+        }
+        if (selected.zipCode) {
+            setValue('takecare_postcode', selected.zipCode);
+        }
+    }, [selected, setValue, getNames]);
+
+    // 🔥 ฟังก์ชันเช็คว่าควรขึ้น "สีเขียว" หรือไม่
+    const isFieldValid = (name: keyof ElderlyRegistrationFormData) => {
+        const value = watch(name);
+        if (name === 'takecare_birthday' || name === 'gender_id' || name === 'marry_id') {
+            return !errors[name] && !!value;
+        }
+        return !errors[name] && !!value && value.toString().trim() !== "";
+    };
+
+    useEffect(() => {
+        getMasterData()
+        const auToken = router.query.auToken
+
+        if (auToken && typeof auToken === 'string') {
+            onGetUserProfile(auToken)
+            
+            // เรียกใช้ตรงๆ แทนการพึ่ง function
+            const fetchUserData = async () => {
+                try {
+                    const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`);
+                    if(responseUser.data?.data){
+                        const encodedUsersId = encrypt(responseUser.data?.data.users_id.toString());
+                        
+                        const responseTakecareperson = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`);
+                        const takecareData = responseTakecareperson.data?.data;
+                        
+                        if(takecareData){
+                            // 🔥 ใช้ reset เพื่อกำหนดค่าเริ่มต้นให้กับ form
+                            reset({
+                                takecare_fname: takecareData.takecare_fname,
+                                takecare_sname: takecareData.takecare_sname,
+                                takecare_birthday: new Date(takecareData.takecare_birthday),
+                                gender_id: takecareData.gender_id,
+                                marry_id: takecareData.marry_id,
+                                takecare_number: takecareData.takecare_number,
+                                takecare_moo: takecareData.takecare_moo,
+                                takecare_road: takecareData.takecare_road,
+                                takecare_tubon: takecareData.takecare_tubon,
+                                takecare_amphur: takecareData.takecare_amphur,
+                                takecare_province: takecareData.takecare_province,
+                                takecare_postcode: takecareData.takecare_postcode,
+                                takecare_tel1: takecareData.takecare_tel1,
+                                takecare_tel_home: takecareData.takecare_tel_home,
+                                takecare_disease: takecareData.takecare_disease,
+                                takecare_drug: takecareData.takecare_drug,
+                            });
+                        }
+                        
+                        setDataUser({ 
+                            isLogin: false, 
+                            data: takecareData, 
+                            users_id: responseUser.data?.data.users_id 
+                        });
+                    }else{
+                        setDataUser({ isLogin: false, data: null, users_id: null })
+                    }
+                } catch (error) {
+                    console.log("🚀 ~ file: elderly-registration.tsx ~ fetchUserData ~ error:", error)
+                    setDataUser({ isLogin: false, data: null, users_id: null })
+                    setAlert({ show: true, message: 'ระบบไม่สามารถดึงข้อมูลของท่านได้ กรุณาลองใหม่อีกครั้ง' })
+                }
+            };
+            
+            fetchUserData();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [router.query.auToken])
+
+    // 🔥 useEffect แยกสำหรับ set dropdown เมื่อข้อมูลจังหวัดโหลดเสร็จแล้ว
+    useEffect(() => {
+        if (dataUser.data && data.provinces.length > 0) {
+            const takecareData = dataUser.data;
+            // Set initial address values for dropdown
+            if (takecareData.takecare_province && takecareData.takecare_amphur && takecareData.takecare_tubon) {
+                actions.setInitialValues(
+                    takecareData.takecare_province,
+                    takecareData.takecare_amphur,
+                    takecareData.takecare_tubon,
+                    takecareData.takecare_postcode
+                );
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dataUser.data, data.provinces.length])
 
     const getMasterData = async () => {
         try {
@@ -84,9 +201,7 @@ const ElderlyRegistration = () => {
 
     const onGetUserProfile = async (auToken: string) => {
         try {
-          
             const response = await axios.get(`${process.env.WEB_DOMAIN}/api/getProfile?id=${auToken}`);
-           
             if (response.data) {
                 setDisplayName(response.data.data?.displayName)
             }
@@ -94,176 +209,326 @@ const ElderlyRegistration = () => {
             setAlert({ show: true, message: 'ระบบไม่สามารถดึงข้อมูล LINE ของท่านได้ กรุณาลองใหม่อีกครั้ง' })
         }
     }
-    const onGetUserData = async (auToken: string) => {
+
+    const onSubmit = async (formData: ElderlyRegistrationFormData) => {
         try {
-            const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`);
-            if(responseUser.data?.data){
-                const encodedUsersId = encrypt(responseUser.data?.data.users_id.toString());
-                
-                const responseTakecareperson = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`);
-                const data = responseTakecareperson.data?.data
-                if(data){
-                    setTakecareBirthday(new Date(data.takecare_birthday))
+            if(!dataUser.users_id){
+                setAlert({ show: true, message: 'ไม่พบข้อมูลผู้ใช้' })
+                return;
+            }
+
+            const data = {
+                users_id         : dataUser.users_id,
+                takecare_fname   : formData.takecare_fname,
+                takecare_sname   : formData.takecare_sname,
+                takecare_birthday: formData.takecare_birthday,
+                gender_id        : formData.gender_id,
+                marry_id         : formData.marry_id,
+                takecare_number  : formData.takecare_number,
+                takecare_moo     : formData.takecare_moo,
+                takecare_road    : formData.takecare_road,
+                takecare_tubon   : formData.takecare_tubon,
+                takecare_amphur  : formData.takecare_amphur,
+                takecare_province: formData.takecare_province,
+                takecare_postcode: formData.takecare_postcode,
+                takecare_tel1    : formData.takecare_tel1,
+                takecare_tel_home: formData.takecare_tel_home,
+                takecare_disease : formData.takecare_disease,
+                takecare_drug    : formData.takecare_drug,
+            }
+
+            await axios.post(`${process.env.WEB_DOMAIN}/api/registration/takecareperson`, data)
+            
+            // Reload data
+            if (router.query.auToken && typeof router.query.auToken === 'string') {
+                const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${router.query.auToken}`);
+                if(responseUser.data?.data){
+                    const encodedUsersId = encrypt(responseUser.data?.data.users_id.toString());
+                    const responseTakecareperson = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`);
+                    setDataUser({ 
+                        isLogin: false, 
+                        data: responseTakecareperson.data?.data, 
+                        users_id: responseUser.data?.data.users_id 
+                    });
                 }
-                setDataUser({ isLogin: false, data, users_id: responseUser.data?.data.users_id })
-            }else{
-                setDataUser({ isLogin: false, data: null, users_id: responseUser.data?.data.users_id })
             }
-        } catch (error) {
-            console.log("🚀 ~ file: registration.tsx:66 ~ onGetUserData ~ error:", error)
-            setDataUser({ isLogin: false, data: null, users_id: null })
-            setAlert({ show: true, message: 'ระบบไม่สามารถดึงข้อมูลของท่านได้ กรุณาลองใหม่อีกครั้ง' })
-        }
-    }
+            
+            setAlert({ show: true, message: 'บันทึกข้อมูลสำเร็จ' })
 
-    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        try {
-            const form = event.currentTarget;
-           
-            if (form.checkValidity() === false) {
-                setAlert({ show: true, message: 'กรุณากรอกข้อมูลให้ครบถ้วน' })
-            } else {
-                   if(dataUser.users_id){
-                       const data = {
-                           users_id         : dataUser.users_id,
-                           takecare_fname   : form['takecare_fname'].value,
-                           takecare_sname   : form['takecare_sname'].value,
-                           takecare_birthday: takecareBirthday,
-                           gender_id        : Number(form['gender'].value),
-                           marry_id         : Number(form['marry'].value),
-                           takecare_number  : form['takecare_number'].value,
-                           takecare_moo     : form['takecare_moo'].value,
-                           takecare_road    : form['takecare_road'].value,
-                           takecare_tubon   : form['takecare_tubon'].value,
-                           takecare_amphur  : form['takecare_amphur'].value,
-                           takecare_province: form['takecare_province'].value,
-                           takecare_postcode: form['takecare_postcode'].value,
-                           takecare_tel1    : form['takecare_tel1'].value,
-                           takecare_disease : form['takecare_disease'].value,
-                           takecare_drug    : form['takecare_drug'].value,
-   
-                       }
-                       event.stopPropagation();
-                       setLoading(true)
-                       await axios.post(`${process.env.WEB_DOMAIN}/api/registration/takecareperson`, data)
-                       onGetUserData(router.query.auToken as string)
-                       setAlert({ show: true, message: 'บันทึกข้อมูลสำเร็จ' })
-                       setLoading(false)
-                   } 
-                
-               
-            }
         } catch (error) {
-            setLoading(false)
             setAlert({ show: true, message: 'ไม่สามารถบันทึกข้อมูลได้' })
-        } finally {
-            setLoading(false)
-            setValidated(true);
-            event.stopPropagation();
         }
-
     };
+
     if (dataUser.isLogin) return null;
 
     return (
         <Container>
             <div className={styles.main}>
                 <Image src={'/images/Logo.png'} width={100} height={100} alt="Logo" priority />
-                <h1 className="py-2">ลงทะเบียนผู้สูงอายุ</h1>
+                <h1 className="py-2">ลงทะเบียนผู้มีภาวะพึ่งพิง</h1>
             </div>
             <div className="px-5">
-                <Form noValidate validated={validated} onSubmit={(e) => handleSubmit(e)}>
-                    <Form.Group>
-                        <InputLabel label="LINE-USER" id="lineUser" defaultValue={displayName} disabled required />
+                <Form noValidate onSubmit={handleSubmit(onSubmit)}>
+                    
+                    <InputLabel 
+                        label="ชื่อ" 
+                        id="takecare_fname" 
+                        placeholder="กรอกชื่อ" 
+                        disabled={!!dataUser.data}
+                        {...register("takecare_fname")}
+                        isInvalid={!!errors.takecare_fname}
+                        errorMessage={errors.takecare_fname?.message}
+                        isValid={isFieldValid("takecare_fname")}
+                        required
+                    />
+
+                    <InputLabel 
+                        label="นามสกุล" 
+                        id="takecare_sname" 
+                        placeholder="กรอกนามสกุล" 
+                        disabled={!!dataUser.data}
+                        {...register("takecare_sname")}
+                        isInvalid={!!errors.takecare_sname}
+                        errorMessage={errors.takecare_sname?.message}
+                        isValid={isFieldValid("takecare_sname")}
+                        required
+                    />
+
+                    <Form.Group className="mb-3">
+                        <Form.Label>วันเดือนปีเกิด <span className="text-danger">*</span></Form.Label>
+                        <Controller
+                            name="takecare_birthday"
+                            control={control}
+                            render={({ field }) => (
+                                <DatePickerX 
+                                    selected={field.value} 
+                                    onChange={(date) => field.onChange(date)} 
+                                    disabled={!!dataUser.data} 
+                                />
+                            )}
+                        />
+                        {errors.takecare_birthday && (
+                            <Form.Control.Feedback type="invalid" style={{ display: 'block' }}>
+                                {errors.takecare_birthday.message}
+                            </Form.Control.Feedback>
+                        )}
                     </Form.Group>
-                    <Form.Group>
-                        <InputLabel label="ชื่อ" id="takecare_fname" placeholder="กรอกชื่อ" required defaultValue={dataUser.data?.takecare_fname || ''} disabled={dataUser.data ? true : false} />
-                    </Form.Group>
-                    <Form.Group>
-                        <InputLabel label="นามสกุล" id="takecare_sname" placeholder="กรอกนามสกุล" required defaultValue={dataUser.data?.takecare_sname || ''} disabled={dataUser.data ? true : false} />
-                    </Form.Group>
-                    <Form.Group>
-                        <p className="m-0">วันเดือนปีเกิด</p>
-                        <div className="py-2">
-                            <DatePickerX selected={takecareBirthday} onChange={(date) => setTakecareBirthday(date)} disabled={dataUser.data ? false : false} />
-                        </div>
-                    </Form.Group>
-                    <Form.Group className="mb-2">
-                        <p className="m-0">เพศ</p>
+
+                    <Form.Group className="mb-3">
+                        <Form.Label>เพศ <span className="text-danger">*</span></Form.Label>
                         <div className="d-flex justify-content-around">
                             {
-                                masterGender.length > 0 && masterGender.map((item: any, index: number) => {
+                                masterGender.length > 0 && masterGender.map((item: any) => {
+                                    const genderId = Number(item.gender_id);
                                     return (
                                         <Form.Check
-                                            key={`${index}-gender`}
+                                            key={`gender-${genderId}`}
                                             label={item.gender_describe}
-                                            name="gender"
-                                            type={'radio'}
-                                            value={item.gender_id}
-                                            defaultChecked={dataUser.data?.gender_id ? (dataUser.data?.gender_id === item.gender_id ? true : false) : (index === 0 ? true : false) }
-                                            disabled={dataUser.data ? true : false}
+                                            type="radio"
+                                            name="gender_id"
+                                            id={`gender-${genderId}`}
+                                            value={genderId}
+                                            checked={watch("gender_id") === genderId}
+                                            onChange={(e) => {
+                                                setValue("gender_id", Number(e.target.value), { shouldValidate: true });
+                                            }}
                                         />
                                     )
                                 })
                             }
                         </div>
+                        {errors.gender_id && (
+                            <Form.Control.Feedback type="invalid" style={{ display: 'block' }}>
+                                {errors.gender_id.message}
+                            </Form.Control.Feedback>
+                        )}
                     </Form.Group>
-                    <Form.Group className="mb-2">
-                        <p className="m-0">สถานะการสมรส</p>
+
+                    <Form.Group className="mb-3">
+                        <Form.Label>สถานะการสมรส <span className="text-danger">*</span></Form.Label>
                         <div className="px-4">
                             {
-                                masterMarry.length > 0 && masterMarry.map((item: any, index: number) => {
+                                masterMarry.length > 0 && masterMarry.map((item: any) => {
+                                    const marryId = Number(item.marry_id);
                                     return (
                                         <Form.Check
-                                            key={`${index}-marry`}
+                                            key={`marry-${marryId}`}
                                             className="py-1"
                                             label={item.marry_describe}
-                                            name="marry"
-                                            type={'radio'}
-                                            value={item.marry_id}
-                                            defaultChecked={dataUser.data?.marry_id ? (dataUser.data?.marry_id === item.marry_id ? true : false) : (index === 0 ? true : false)}
-                                            disabled={dataUser.data ? true : false}
+                                            type="radio"
+                                            name="marry_id"
+                                            id={`marry-${marryId}`}
+                                            value={marryId}
+                                            checked={watch("marry_id") === marryId}
+                                            onChange={(e) => {
+                                                setValue("marry_id", Number(e.target.value), { shouldValidate: true });
+                                            }}
                                         />
                                     )
                                 })
                             }
                         </div>
+                        {errors.marry_id && (
+                            <Form.Control.Feedback type="invalid" style={{ display: 'block' }}>
+                                {errors.marry_id.message}
+                            </Form.Control.Feedback>
+                        )}
                     </Form.Group>
-                    <Form.Group>
-                        <InputLabel label="เลขที่บ้าน" id="takecare_number" placeholder="123/12" max={10} defaultValue={dataUser.data?.takecare_number || ''} disabled={dataUser.data ? true : false} />
-                    </Form.Group>
-                    <Form.Group>
-                        <InputLabel label="หมู่" id="takecare_moo" placeholder="1" max={5} defaultValue={dataUser.data?.takecare_moo || ''} disabled={dataUser.data ? true : false} />
-                    </Form.Group>
-                    <Form.Group>
-                        <InputLabel label="ถนน" id="takecare_road" placeholder="-" defaultValue={dataUser.data?.takecare_road || ''} disabled={dataUser.data ? true : false} />
-                    </Form.Group>
-                    <Form.Group>
-                        <InputLabel label="ตำบล" id="takecare_tubon" placeholder="กรอกตำบล" defaultValue={dataUser.data?.takecare_tubon || ''} disabled={dataUser.data ? true : false} />
-                    </Form.Group>
-                    <Form.Group>
-                        <InputLabel label="อำเภอ" id="takecare_amphur" placeholder="กรอกอำเภอ" defaultValue={dataUser.data?.takecare_amphur || ''} disabled={dataUser.data ? true : false} />
-                    </Form.Group>
-                    <Form.Group>
-                        <InputLabel label="จังหวัด" id="takecare_province" placeholder="กรอกจังหวัด" defaultValue={dataUser.data?.takecare_province || ''} disabled={dataUser.data ? true : false} />
-                    </Form.Group>
-                    <Form.Group>
-                        <InputLabel label="รหัสไปรษณีย์" id="takecare_postcode" placeholder="กรอกรหัสไปรษณีย์" max={5} type="number" defaultValue={dataUser.data?.takecare_postcode || ''} disabled={dataUser.data ? true : false} />
-                    </Form.Group>
-                    <Form.Group>
-                        <InputLabel label="เบอร์โทรศัพท์" id="takecare_tel1" placeholder="กรอกเบอร์โทรศัพท์" max={12} defaultValue={dataUser.data?.takecare_tel1 || ''} disabled={dataUser.data ? true : false} />
-                    </Form.Group>
-                    <Form.Group>
-                        <InputLabel label="โรคประจำตัว" id="takecare_disease" placeholder="กรอกโรคประจำตัว" defaultValue={dataUser.data?.takecare_disease || ''} disabled={dataUser.data ? true : false} />
-                    </Form.Group>
-                    <Form.Group>
-                        <InputLabel label="ยาที่ใช้ประจำ" id="takecare_drug" placeholder="กรอกยาที่ใช้ประจำ" defaultValue={dataUser.data?.takecare_drug || ''} disabled={dataUser.data ? true : false} />
-                    </Form.Group>
+
+                    <InputLabel 
+                        label="เลขที่บ้าน" 
+                        id="takecare_number" 
+                        placeholder="กรอกเลขที่บ้าน" 
+                        max={10}
+                        disabled={!!dataUser.data}
+                        {...register("takecare_number")}
+                        isValid={isFieldValid("takecare_number")}
+                    />
+
+                    <InputLabel 
+                        label="หมู่" 
+                        id="takecare_moo" 
+                        placeholder="1" 
+                        max={5}
+                        disabled={!!dataUser.data}
+                        {...register("takecare_moo")}
+                        isValid={isFieldValid("takecare_moo")}
+                    />
+
+                    <InputLabel 
+                        label="ถนน" 
+                        id="takecare_road" 
+                        placeholder="-"
+                        disabled={!!dataUser.data}
+                        {...register("takecare_road")}
+                        isValid={isFieldValid("takecare_road")}
+                    />
+
+                    {/* 🔥 Dropdown สำหรับที่อยู่ */}
+                    {status.loading ? (
+                        <p className="text-muted">กำลังโหลดข้อมูลจังหวัด...</p>
+                    ) : (
+                        <>
+                            <input type="hidden" {...register("takecare_province")} />
+                            <input type="hidden" {...register("takecare_amphur")} />
+                            <input type="hidden" {...register("takecare_tubon")} />
+                            
+                            <SelectAddress
+                                label="จังหวัด"
+                                id="takecare_province"
+                                value={selected.provinceId}
+                                options={data.provinces}
+                                onChange={actions.setProvince}
+                                disabled={!!dataUser.data || status.loading || !!status.error}
+                                placeholder="เลือกจังหวัด"
+                                isInvalid={!!errors.takecare_province}
+                                errorMessage={errors.takecare_province?.message}
+                                isValid={isFieldValid("takecare_province")}
+                                required
+                                getLabel={getLabel}
+                            />
+
+                            <SelectAddress
+                                label="อำเภอ"
+                                id="takecare_amphur"
+                                value={selected.districtId}
+                                options={data.districts}
+                                onChange={actions.setDistrict}
+                                disabled={!!dataUser.data || !selected.provinceId}
+                                placeholder={!selected.provinceId ? "เลือกอำเภอก่อน" : "เลือกตำบล"}
+                                isInvalid={!!errors.takecare_amphur}
+                                errorMessage={errors.takecare_amphur?.message}
+                                isValid={isFieldValid("takecare_amphur")}
+                                required
+                                getLabel={getLabel}
+                            />
+
+                            <SelectAddress
+                                label="ตำบล"
+                                id="takecare_tubon"
+                                value={selected.subDistrictId}
+                                options={data.subDistricts}
+                                onChange={actions.setSubDistrict}
+                                disabled={!!dataUser.data || !selected.districtId}
+                                placeholder={!selected.districtId ? "เลือกอำเภอก่อน" : "เลือกตำบล"}
+                                isInvalid={!!errors.takecare_tubon}
+                                errorMessage={errors.takecare_tubon?.message}
+                                isValid={isFieldValid("takecare_tubon")}
+                                required
+                                getLabel={getLabel}
+                            />
+                        </>
+                    )}
+
+                    <InputLabel 
+                        label="รหัสไปรษณีย์" 
+                        id="takecare_postcode" 
+                        placeholder="รหัสไปรษณีย์จะถูกกรอกอัตโนมัติ" 
+                        type="tel"
+                        max={5}
+                        disabled={!!dataUser.data}
+                        {...register("takecare_postcode")}
+                        isInvalid={!!errors.takecare_postcode}
+                        errorMessage={errors.takecare_postcode?.message}
+                        isValid={isFieldValid("takecare_postcode")}
+                        readOnly
+                        required
+                    />
+
+                    <InputLabel 
+                        label="เบอร์โทรศัพท์" 
+                        id="takecare_tel1" 
+                        placeholder="กรอกเบอร์โทรศัพท์" 
+                        type="tel"
+                        max={10}
+                        disabled={!!dataUser.data}
+                        {...register("takecare_tel1")}
+                        isInvalid={!!errors.takecare_tel1}
+                        errorMessage={errors.takecare_tel1?.message}
+                        isValid={isFieldValid("takecare_tel1")}
+                        required
+                    />
+                    <InputLabel 
+                        label="เบอร์โทรศัพท์บ้าน" 
+                        id="takecare_tel_home" 
+                        placeholder="กรอกเบอร์โทรศัพท์บ้าน" 
+                        type="tel"
+                        max={10}
+                        disabled={!!dataUser.data}
+                        {...register("takecare_tel_home")}
+                        isInvalid={!!errors.takecare_tel_home}
+                        errorMessage={errors.takecare_tel_home?.message}
+                        isValid={isFieldValid("takecare_tel_home")}
+                    />
+                    <InputLabel 
+                        label="โรคประจำตัว" 
+                        id="takecare_disease" 
+                        placeholder="กรอกโรคประจำตัว"
+                        disabled={!!dataUser.data}
+                        {...register("takecare_disease")}
+                        isValid={isFieldValid("takecare_disease")}
+                    />
+
+                    <InputLabel 
+                        label="ยาที่ใช้ประจำ" 
+                        id="takecare_drug" 
+                        placeholder="กรอกยาที่ใช้ประจำ"
+                        disabled={!!dataUser.data}
+                        {...register("takecare_drug")}
+                        isValid={isFieldValid("takecare_drug")}
+                    />
+
                     {
                         !dataUser.data && (
                             <Form.Group className="d-flex justify-content-center py-3">
-                                <ButtonState type="submit" className={styles.button} text={'บันทึก'} icon="fas fa-save" isLoading={isLoading} />
+                                <ButtonState 
+                                    type="submit" 
+                                    className={styles.button} 
+                                    text={'บันทึก'} 
+                                    icon="fas fa-save" 
+                                    isLoading={isSubmitting} 
+                                />
                             </Form.Group>
                         )
                     }
@@ -274,10 +539,12 @@ const ElderlyRegistration = () => {
         </Container>
     )
 }
+
 export const getServerSideProps: GetServerSideProps = withCommonData({
-    title: 'ลงทะเบียนผู้สูงอายุ',
-    description: 'ลงทะเบียนผู้สูงอายุ',
+    title: 'ลงทะเบียนผู้มีภาวะพึ่งพิง',
+    description: 'ลงทะเบียนผู้มีภาวะพึ่งพิง',
     slug: '',
-    titleBar: 'ลงทะเบียนผู้สูงอายุ'
+    titleBar: 'ลงทะเบียนผู้มีภาวะพึ่งพิง'
 });
+
 export default ElderlyRegistration

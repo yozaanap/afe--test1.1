@@ -2,7 +2,6 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { replyNotification, replyNotificationPostback } from '@/utils/apiLineReply';
 import moment from 'moment';
-import * as api from '@/lib/listAPI';
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   // รองรับทั้ง POST และ PUT
@@ -57,9 +56,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         orderBy: { locat_timestamp: 'desc' },
       });
 
-      // เก็บสถานะเดิมเพื่อเช็คการเปลี่ยนแปลง
-      const previousStatus = latest?.locat_status;
-
       // ข้อมูลที่จะบันทึก
       const dataPayload = {
         users_id: Number(uId),
@@ -78,52 +74,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       let savedLocation;
       if (latest) {
         savedLocation = await prisma.location.update({
-          where: { location_id: latest.location_id },
+          where: { location_id: latest.location_id }, // ✅ แก้ตรงนี้
           data: dataPayload,
         });
       } else {
         savedLocation = await prisma.location.create({ data: dataPayload });
-      }
-
-      // ตรวจสอบการเปลี่ยนสถานะจาก 2 (ออกนอกเขตชั้น 2) → 0 (กลับเข้าเขตปลอดภัย)
-      if (previousStatus === 2 && calculatedStatus === 0) {
-        const user = await prisma.users.findFirst({ where: { users_id: Number(uId) } });
-        const takecareperson = await prisma.takecareperson.findFirst({
-          where: {
-            users_id: Number(uId),
-            takecare_id: Number(takecare_id),
-            takecare_status: 1,
-          },
-        });
-
-        if (user && takecareperson) {
-          const replyToken = user.users_line_id || '';
-          const safeMessage = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nกลับเข้าเขตปลอดภัยแล้ว`;
-
-          // ส่งการแจ้งเตือนกลับเข้าเขตปลอดภัย
-          if (replyToken) {
-            await replyNotification({ replyToken, message: safeMessage });
-          }
-
-          // ปิดเคส extended_help อัตโนมัติ (ถ้ามี)
-          const openCase = await prisma.extendedhelp.findFirst({
-            where: {
-              takecare_id: Number(takecare_id),
-              user_id: Number(uId),
-              exted_closed_date: null,
-            },
-          });
-
-          if (openCase) {
-            await api.updateExtendedHelp({
-              extenId: openCase.exten_id,
-              typeStatus: "close",
-              extenClosedUserId: Number(uId),
-            });
-          }
-        }
-
-        return res.status(200).json({ message: 'success', data: savedLocation });
       }
 
       // ถ้าสถานะเป็น 0 ไม่ต้องแจ้งเตือน
@@ -131,20 +86,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         return res.status(200).json({ message: 'success', data: savedLocation });
       }
 
-      // ตรวจสอบว่าควรแจ้งเตือนหรือไม่
-      // แจ้งเตือนเฉพาะเมื่อ:
-      // 1. สถานะเปลี่ยนจากเดิม (previousStatus !== calculatedStatus)
-      // 2. หรือเวลาผ่านไปมากกว่า 15 นาที (900000 มิลลิวินาที) นับจากการแจ้งเตือนครั้งล่าสุด
-      const shouldNotify =
-        previousStatus !== calculatedStatus ||
-        !latest?.locat_noti_time ||
-        (new Date().getTime() - new Date(latest.locat_noti_time).getTime()) > 900000; // 15 นาที
-
-      if (!shouldNotify) {
-        return res.status(200).json({ message: 'success', data: savedLocation });
-      }
-
-      // แจ้งเตือน
+      // แจ้งเตือน (เหมือนเดิม)
       const user = await prisma.users.findFirst({ where: { users_id: Number(uId) } });
       const takecareperson = await prisma.takecareperson.findFirst({
         where: {
@@ -156,38 +98,24 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
       if (user && takecareperson) {
         const replyToken = user.users_line_id || '';
-        if (!replyToken) return;
-
-        // เตรียมตัวแปรพื้นฐาน
-        let config = {
-          message: "",
-          bgColor: "#FFC107", // สีเหลือง (Default)
-          textColor: "#000000"  // ตัวอักษรดำสำหรับพื้นเหลือง
-        };
 
         if (calculatedStatus === 3) {
-          config.message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nเข้าใกล้เขตปลอดภัย ชั้นที่ 2 แล้ว`;
-          // ใช้สีเหลืองตาม Default
-        } 
-        else if (calculatedStatus === 1) {
-          config.message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nออกนอกเขตปลอดภัย ชั้นที่ 1 แล้ว`;
-          // ใช้สีเหลืองตาม Default
-        } 
-        else if (calculatedStatus === 2) {
-          config.message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nออกนอกเขตปลอดภัย ชั้นที่ 2 แล้ว`;
-          config.bgColor = "#FC0303"; // เปลี่ยนเป็นสีแดง
-          config.textColor = "#FFFFFF"; // ตัวอักษรขาวสำหรับพื้นแดง
-        }
-
-        // ส่งแจ้งเตือนถ้ามีข้อความ
-        if (config.message) {
-          await replyNotificationPostback({
-            userId: Number(uId),
-            takecarepersonId: Number(takecare_id),
-            type: 'safezone',
-            message: config.message,
-            replyToken
-          });
+          const warningMessage = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nเข้าใกล้เขตปลอดภัย ชั้นที่ 2 แล้ว`;
+          if (replyToken) await replyNotification({ replyToken, message: warningMessage });
+        } else if (calculatedStatus === 1) {
+          const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nออกนอกเขตปลอดภัย ชั้นที่ 1 แล้ว`;
+          if (replyToken) await replyNotification({ replyToken, message });
+        } else if (calculatedStatus === 2) {
+          const postbackMessage = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nออกนอกเขตปลอดภัย ชั้นที่ 2 แล้ว`;
+          if (replyToken) {
+            await replyNotificationPostback({
+              userId: Number(uId),
+              takecarepersonId: Number(takecare_id),
+              type: 'safezone',
+              message: postbackMessage,
+              replyToken,
+            });
+          }
         }
       }
 

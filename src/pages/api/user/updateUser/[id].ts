@@ -32,6 +32,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
                         users_province: body.users_province,
                         users_postcode: body.users_postcode,
                         users_tel1    : body.users_tel1,
+                        users_tel_home: body.users_tel_home,
                     },
                 })
 

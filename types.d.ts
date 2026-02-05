@@ -24,6 +24,7 @@ type UserDataProps = {
     users_province      ?: string;
     users_postcode      ?: string;
     users_tel1          ?: string;
+    users_tel_home      ?: string;
     status_id            : number;
     users_status_active ?: number;
     users_related_borrow?: string;
@@ -45,6 +46,7 @@ type UserTakecareProps = {
     takecare_province?: string;
     takecare_postcode?: string;
     takecare_tel1    ?: string;
+    takecare_tel_home?: string;
     takecare_disease ?: string;
     takecare_drug    ?: string;
     takecare_status  ?: number;

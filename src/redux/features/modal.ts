@@ -1,23 +1,8 @@
 import { createSlice, PayloadAction, createAsyncThunk } from "@reduxjs/toolkit";
 
-interface Alert {
-    show?: boolean;
-    title?: string;
-    message?: string;
-    redirectTo?: string;
-}
 
-interface ModalState {
-    alert: {
-        show: boolean;
-        title: string;
-        message: string;
-        redirectTo: string;
-    };
-    processing: boolean;
-}
 
-const initialState: ModalState = {
+const initialState = {
     alert: {
         show      : false,
         title     : 'SEPAW',

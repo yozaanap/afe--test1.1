@@ -34,6 +34,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
                         takecare_province: body.takecare_province,
                         takecare_postcode: body.takecare_postcode,
                         takecare_tel1    : body.takecare_tel1,
+                        takecare_tel_home: body.takecare_tel_home,
                         takecare_disease : body.takecare_disease,
                         takecare_drug    : body.takecare_drug,
                     },

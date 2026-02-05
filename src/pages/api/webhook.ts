@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { NextResponse } from 'next/server'
 import axios from "axios";
 import prisma from '@/lib/prisma'
-import { replyMessage, replyRegistration, replyUserData, replyNotRegistration, replyMenuBorrowequipment, replyConnection, replyLocation, replySetting, replyUserInfo, replyNotification, replyNotificationSafe } from '@/utils/apiLineReply';
+import { replyMessage, replyRegistration, replyUserData, replyNotRegistration, replyMenuBorrowequipment, replyConnection, replyLocation, replySetting, replyUserInfo, replyNotification } from '@/utils/apiLineReply';
 import { encrypt, parseQueryString } from '@/utils/helpers'
 import { postbackSafezone, postbackAccept, postbackClose } from '@/lib/lineFunction'
 import * as api from '@/lib/listAPI'
@@ -115,11 +115,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
                 const encodedUsersId = encrypt(responseUser.users_id.toString());
                 console.log("Encoded User ID: ", encodedUsersId);  // เช็คค่า encoded userId
                 const responseUserTakecareperson = await getUserTakecareperson(encodedUsersId);
-                console.log("User Takecareperson Data: ", responseUserTakecareperson);  // เช็คข้อมูลผู้สูงอายุ
+                console.log("User Takecareperson Data: ", responseUserTakecareperson);  // เช็คข้อมูลผู้มีภาวะพึ่งพิง
                 if (responseUserTakecareperson) {
                   await replyConnection({ replyToken, userData: responseUser, userTakecarepersonData: responseUserTakecareperson });
                 } else {
-                  await replyMessage({ replyToken: req.body.events[0].replyToken, message: 'ยังไม่ได้เพิ่มข้อมูลผู้สูงอายุไม่สามารถเชื่อมต่อนาฬิกาได้' });
+                  await replyMessage({ replyToken: req.body.events[0].replyToken, message: 'ยังไม่ได้เพิ่มข้อมูลผู้มีภาวะพึ่งพิงไม่สามารถเชื่อมต่อนาฬิกาได้' });
                 }
               } else {
                 await replyNotRegistration({ replyToken, userId });
@@ -130,7 +130,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
               if (responseUser) {
                 const encodedUsersId = encrypt(responseUser.users_id.toString());
                 const responseUserTakecareperson = await getUserTakecareperson(encodedUsersId);
-                console.log("User Takecareperson Data: ", responseUserTakecareperson);  // เช็คข้อมูลผู้สูงอายุ
+                console.log("User Takecareperson Data: ", responseUserTakecareperson);  // เช็คข้อมูลผู้มีภาวะพึ่งพิง
                 if (responseUserTakecareperson) {
                   const responeSafezone = await getSafezone(responseUserTakecareperson.takecare_id, responseUser.users_id);
                   console.log("Safezone Data: ", responeSafezone);  // เช็คข้อมูลเขตปลอดภัย
@@ -142,7 +142,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
                     await replyMessage({ replyToken: req.body.events[0].replyToken, message: 'ยังไม่ได้ตั้งค่าเขตปลอดภัยไม่สามารถดูตำแหน่งปัจจุบันได้' });
                   }
                 } else {
-                  await replyMessage({ replyToken: req.body.events[0].replyToken, message: 'ยังไม่ได้เพิ่มข้อมูลผู้สูงอายุไม่สามารถดูตำแหน่งปัจจุบันได้' });
+                  await replyMessage({ replyToken: req.body.events[0].replyToken, message: 'ยังไม่ได้เพิ่มข้อมูลผู้มีภาวะพึ่งพิงไม่สามารถดูตำแหน่งปัจจุบันได้' });
                 }
               } else {
                 await replyNotRegistration({ replyToken, userId });
@@ -153,13 +153,13 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
               if (responseUser) {
                 const encodedUsersId = encrypt(responseUser.users_id.toString());
                 const responseUserTakecareperson = await getUserTakecareperson(encodedUsersId);
-                console.log("User Takecareperson Data: ", responseUserTakecareperson);  // เช็คข้อมูลผู้สูงอายุ
+                console.log("User Takecareperson Data: ", responseUserTakecareperson);  // เช็คข้อมูลผู้มีภาวะพึ่งพิง
                 if (responseUserTakecareperson) {
                   const responeSafezone = await getSafezone(responseUserTakecareperson.takecare_id, responseUser.users_id);
                   console.log("Safezone Data: ", responeSafezone);  // เช็คข้อมูลเขตปลอดภัย
                   await replySetting({ replyToken, userData: responseUser, userTakecarepersonData: responseUserTakecareperson, safezoneData: responeSafezone });
                 } else {
-                  await replyMessage({ replyToken: req.body.events[0].replyToken, message: 'ยังไม่ได้เพิ่มข้อมูลผู้สูงอายุไม่สามารถตั้งค่าเขตปลอดภัยได้' });
+                  await replyMessage({ replyToken: req.body.events[0].replyToken, message: 'ยังไม่ได้เพิ่มข้อมูลผู้มีภาวะพึ่งพิงไม่สามารถตั้งค่าเขตปลอดภัยได้' });
                 }
               } else {
                 await replyNotRegistration({ replyToken, userId });
@@ -170,7 +170,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
               if (responseUser) {
                 const encodedUsersId = encrypt(responseUser.users_id.toString());
                 const responseUserTakecareperson = await getUserTakecareperson(encodedUsersId);
-                console.log("User Takecareperson Data: ", responseUserTakecareperson);  // เช็คข้อมูลผู้สูงอายุ
+                console.log("User Takecareperson Data: ", responseUserTakecareperson);  // เช็คข้อมูลผู้มีภาวะพึ่งพิง
                 await replyUserInfo({ replyToken, userData: responseUser, userTakecarepersonData: responseUserTakecareperson });
               } else {
                 await replyNotRegistration({ replyToken, userId });
@@ -182,44 +182,19 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         // ตรวจสอบ postback
 if (events.type === "postback" && events.postback?.data) {
 	console.log("Postback Data: ", events.postback.data);  // เช็คข้อมูล postback ที่ได้รับ
-
+  
 	// แปลงข้อมูลจาก postback
 	const postback = parseQueryString(events.postback.data);
 	console.log("Parsed Postback: ", postback);  // เช็คผลลัพธ์จากการ parse postback
-
+  
 	// เช็ค postback.type สำหรับกรณีทั้ง 'safezone' และ 'alert'
 	if (postback.type === 'safezone' || postback.type === 'alert') {
 	  console.log("Postback Triggered: ", postback);  // เช็คกรณี safezone หรือ alert
-
-	  // ดึงข้อมูลผู้ใช้จาก LINE User ID
-	  const user = await api.getUser(postback.userLineId);
-
-	  if (user) {
-		// ตรวจสอบสถานะล่าสุดก่อนดำเนินการ
-		const latestLocation = await prisma.location.findFirst({
-		  where: {
-			users_id: user.users_id,
-			takecare_id: Number(postback.takecarepersonId),
-		  },
-		  orderBy: { locat_timestamp: 'desc' },
-		});
-
-		// ถ้าสถานะล่าสุดเป็น 0 (อยู่ในเขตปลอดภัย) ไม่ให้ทำงาน
-		if (latestLocation && latestLocation.locat_status === 0) {
-		  await replyNotificationSafe({
-			replyToken: user.users_line_id,
-			message: '✅ ผู้ที่มีภาวะพึ่งพิงกลับเข้าเขตปลอดภัยแล้ว\nไม่จำเป็นต้องขอความช่วยเหลือเพิ่มเติม'
-		  });
-		  console.log("User is now safe, postback action cancelled");
-		} else {
-		  // สถานะยังไม่ปลอดภัย ดำเนินการตามปกติ
-		  const replyToken = await postbackSafezone({ userLineId: postback.userLineId, takecarepersonId: Number(postback.takecarepersonId) });
-		  console.log("Reply Token for Safezone: ", replyToken);  // เช็ค replyToken
-
-		  if (replyToken) {
-			await replyNotification({ replyToken, message: 'ส่งคำขอความช่วยเหลือแล้ว' });
-		  }
-		}
+	  const replyToken = await postbackSafezone({ userLineId: postback.userLineId, takecarepersonId: Number(postback.takecarepersonId) });
+	  console.log("Reply Token for Safezone: ", replyToken);  // เช็ค replyToken
+  
+	  if (replyToken) {
+		await replyNotification({ replyToken, message: 'ส่งคำขอความช่วยเหลือแล้ว' });
 	  }
 	} else if (postback.type === 'accept') {
 	  console.log("Accept Postback Triggered: ", postback);  // เช็คกรณี accept

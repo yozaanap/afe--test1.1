@@ -12,13 +12,17 @@ interface CustomInputProps {
 const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
     ({ value, onClick }, ref) => (
         <button type="button" className="py-2 btn-date-picker" onClick={onClick} ref={ref}>
-            <i className="fas fa-calendar-day"></i> {moment(new Date(value)).format('DD-MM-YYYY')}
+            <i className="fas fa-calendar-day"></i> {moment(new Date(value)).add(543, 'years').format('DD-MM-YYYY')}
         </button>
     )
 );
 CustomInput.displayName = 'CustomInput';
 const DatePickerX: FC<CustomDatePickerProps> = (props) => {
-    const years = _.range(Number(moment().format('YYYY')) - 100, Number(moment().format('YYYY')) + 5, 1);
+    const years = _.range(
+        Number(moment().format('YYYY')) - 100 + 543,
+        Number(moment().format('YYYY')) + 5 + 543,
+    1
+    );
     const months = [
         "มกราคม",
         "กุมภาพันธ์",
@@ -49,10 +53,12 @@ const DatePickerX: FC<CustomDatePickerProps> = (props) => {
                 >
               
                     <select
-                        value={moment(date).format('YYYY')}
-                        onChange={({ target: { value } }) => changeYear(Number(value))}
+                        value={moment(date).year() + 543}
+                        onChange={({ target: { value } }) =>
+                            changeYear(Number(value) - 543)
+                        }
                         className="header-year"
-                    >
+                        >
                         {years.map((option) => (
                             <option key={option} value={option}>
                                 {option}

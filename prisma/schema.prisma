@@ -41,6 +41,7 @@ model users {
   users_province       String?                @db.VarChar(100)
   users_postcode       String?                @db.VarChar(5)
   users_tel1           String?                @db.VarChar(12)
+  users_tel_home       String?                @db.VarChar(12)
   users_passwd         String                 @db.VarChar(100)
   users_pin            Int
   status_id            Int
@@ -79,6 +80,7 @@ model takecareperson {
   takecare_province    String?                @db.VarChar(100)
   takecare_postcode    String?                @db.VarChar(5)
   takecare_tel1        String?                @db.VarChar(12)
+  takecare_tel_home    String?                @db.VarChar(12)
   takecare_disease     String?                @db.VarChar(300)
   takecare_drug        String?                @db.VarChar(300)
   takecare_status      Int                    @default(1)
